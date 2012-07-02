@@ -1,114 +1,176 @@
 /* 
-* Logo.js - an interpreter for the logo programming language
+* Logo.js - an interpreter for the logo language
 *
 * @author Chris Finch
 */
 
-window.logo = {};
+// Initialize class
 
-logo.processCommands = function (commandString, ctx) {
-	//console.log(commandString, this);
+window.logo = function () {
 
-	var txt = 'forward 50 right 90 forward 50 right 90 penup forward 25 pendown forward 25 right 90 forward 50  ';
-	var arr = txt.split(' ');
-	
-	this.orientation = 270; //in deg
-	this.x = 250;
-	this.y = 250;
+	// Initialize canvas element with 2d context
+	this.canvas = document.getElementById('canvas');  
+	this.ctx = this.canvas.getContext('2d');  
+	this.ctx.strokeStyle = '#ffffff';
+
+	// Set starting point, starting orientation and pen state
+	this.orientation = 0; //in deg
+	this.x = 500;
+	this.y = 400;
 	this.state = true;
 
-	ctx.beginPath();
-	ctx.moveTo(this.x, this.y);
+	// Get form
+	this.form = document.forms['commandsForm'];
+	this.queue = [];
 
-	for (i=0; i<arr.length; i++) {
+	// Parse textarea contents
+	this.parse(this.form['commands'].value, false);
+
+	// Listen for a reset
+	var _this = this;
+	document.getElementById("reset").addEventListener("click", function (event) { // Monitor form for submit
+		event.preventDefault();
+		_this.canvas.width = _this.canvas.width;
+	}, false);
+};
+
+window.logo.prototype = {
+
+	// Take a string of commands, tokenise, repeat if necessary and add to queue
+	parse: function (commandString, nested) {
+
+		// split in to token array on space after striping whitespace and line breaks
+		var tokens = commandString
+		.replace(/(\r\n|\n|\r)/gm," ")
+		.replace(/^\s+/, '')
+		.replace(/\s+$/, '')
+		.toLowerCase()
+		.split(/\s+/);
 		
-		switch (arr[i]) {
+		var	token,
+			param,
+			action;
+
+		// Iterate over tokens array removing commands as they are queued up
+		while (tokens.length) {
 			
-			case 'forward':
+			token = tokens.shift();
 
-				console.log(arr[i], arr[i+1]);
-
-				var r = this.getCoordinates(arr[i+1]);
-
-				if (this.state) {
-					ctx.lineTo(r.x,r.y);
-				} else {
-					ctx.moveTo(r.x,r.y);
-				}
-
-				this.x = r.x;
-				this.y = r.y;
-
-			break;
-
-			case 'right':
+			if (token) {
 				
-				console.log(arr[i], arr[i+1]);
+				action = this[token]; // set method
 
-				var deg = this.orientation + parseInt(arr[i+1], 10);
+				// Do we check for a parameter?
+				if (token == 'forward' || 
+					token == 'right' || 
+					token == 'left' || 
+					token == 'repeat' || 
+					token == 'color') {
 
-				if (deg <= 360) {
-					this.orientation = deg;
+					param = tokens.shift();
+
 				} else {
-					this.orientation = deg - 360;
+					param = null;
 				}
 
-			break;
-
-			case 'penup':
-				this.state = false;
-			break;
-
-			case 'pendown':
-				this.state = true;
-			break;
+				// Should we repeat this section?
+				if (token == 'repeat') {
+					var subTokens= [];
+					var nest = 0;
+					while (tokens && (tokens[0] != 'end' || nest > 0)) { // Is there anything left in this loop or are we in a nested repeat?
+						if (tokens[0] == 'repeat') {
+							nest++;
+						} else if (tokens[0] == 'end') {
+							nest--;
+						}
+						subTokens.push(tokens.shift());
+					}
+					tokens.shift();
+					for (var i=0; i<param; i++) {
+						this.parse(subTokens.join(' '), true); // call self to add repeat instructions, pass nested as false so as not to process queue yet
+					}
+				} else {
+					this.queue.push({ func: action, param: param});
+				}
+				if (tokens.length == 0 && nested == false) { // all done? process queue...
+					this.processQueue();
+				}
+			}
 		}
+	},
+	
+	// Take a queue and execute functions in order after initializing context
+	processQueue: function () {
+		this.ctx.beginPath();
+		this.ctx.moveTo(this.x, this.y);
+		for (var i = 0; i < this.queue.length; i++) {
+			this.queue[i].func.call(this, this.queue[i].param); // Make sure to execute functions in right context with call()
+		}
+		this.ctx.stroke(); // Fill in the path - done!
+	},
 
+	// Helper function for getting next coordinates
+	getCoordinates: function (dist) {
+		// Convert degrees to radians with deg*(PI/180)
+		var result = {
+			x: this.x + Math.cos(this.orientation * (Math.PI/180)) * dist,
+			y: this.y + Math.sin(this.orientation * (Math.PI/180)) * dist
+		};
+		return result;
+	},
+
+	// change color
+	color: function (color) {
+		this.ctx.strokeStyle = color;
+	},
+
+	// Draw a line
+	forward: function (dist) {
+		var r = this.getCoordinates(dist);
+		if (this.state) {
+			this.ctx.lineTo(r.x,r.y);
+		} else {
+			this.ctx.moveTo(r.x,r.y);
+		}		
+		this.x = r.x;
+		this.y = r.y;		
+	},
+
+	// Change orientation to the right
+	right: function (amount) {
+		var deg = this.orientation + parseInt(amount, 10);
+		if (deg <= 360) {
+			this.orientation = deg;
+		} else {
+			this.orientation = deg - 360;
+		}		
+	},
+
+	// Change orientation to the left
+	left: function (amount) {
+		var deg = this.orientation - parseInt(amount, 10);
+		if (deg <= 360) {
+			this.orientation = deg;
+		} else {
+			this.orientation = deg - 360;
+		}		
+	},
+
+	// Draw a line
+	penup: function () {
+		this.state = false;
+	},
+
+	// Move without drawing
+	pendown: function () {
+		this.state = true;
 	}
+};
 
-	ctx.stroke(); 
-
+// On load, wait for submit before executing
+window.onload = function() {
+	document.getElementById("commandsForm").addEventListener("submit", function (event) { // Monitor form for submit
+		event.preventDefault();
+		var a = new window.logo;
+	}, false);
 }
-
-logo.getCoordinates = function (dist) {
-	
-	console.log(this.orientation);
-
-	var result = {
-		x: this.x + Math.cos(this.orientation * (Math.PI/180)) * dist,
-		y: this.y + Math.sin(this.orientation * (Math.PI/180)) * dist
-	};
-
-	return result;
-}
-
-var myFunction = function () {
-
-	var canvas = document.getElementById('canvas');  
-	var ctx = canvas.getContext('2d');  
-	var form = document.forms['form'];
-
-	logo.processCommands(form['commands'].value, ctx);
-
-	return false;
-	
-
-// ctx.beginPath();  
-// ctx.arc(75,75,50,0,Math.PI*2,true); // Outer circle  
-// ctx.moveTo(110,75);  
-// ctx.arc(75,75,35,0,Math.PI,false);   // Mouth (clockwise)  
-// ctx.moveTo(65,65);  
-// ctx.arc(60,65,5,0,Math.PI*2,true);  // Left eye  
-// ctx.moveTo(95,65);  
-// ctx.arc(90,65,5,0,Math.PI*2,true);  // Right eye  
-// ctx.stroke();  
-
-// ctx.beginPath();  
-// ctx.moveTo(75,50);  
-// ctx.lineTo(100,75);  
-// ctx.lineTo(100,25);  
-// ctx.fill();  
-}
-
-
-//window.addEventListener('load', myFunction, false);

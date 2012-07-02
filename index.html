@@ -9,20 +9,56 @@
 	
 	<script src="logo.js" type="text/javascript"></script>
 
+	<style type="text/css">
+
+		body {
+			font-family: Helvetica, arial, sans-serif;
+		}
+
+		h1 {
+			text-align: center;
+		}
+
+		#wrapper {
+			width: 1000px;
+			margin: 0 auto;
+		}
+
+		canvas {
+			border: 1px solid #000, 1px solid #fff;
+			background-color: #000;
+			margin: 12px 0 0 0;
+		}
+
+		textarea {
+			width: 974px;
+			height: 36px;
+			padding: 12px;
+			resize: none;
+		}
+
+	</style>
+
 </head>
 
 <body class="home">
 
-	<form id="form" onSubmit="return myFunction()">
+	<div id="wrapper">
 
-		<textarea name="commands" id="commands"></textarea>
+	<h1>Logo Interpreter</h1>
+
+	<form id="commandsForm" name="commandsForm">
+
+		<textarea name="commands" id="commands">color #7F00FF repeat 36 repeat 12 forward 60 right 30 end right 10 end</textarea>
 
 		<input type="submit" id="submit" name="submit" value="Go">
+		<button id="reset">Reset</button>
 
 	</form>
 	
-	<canvas id="canvas" width="500" height="500" style="border: 1px solid #000;"></canvas>  
+	<canvas id="canvas" width="1000" height="800"></canvas>  
 
+	</div>
 
 </body>
 </html>
